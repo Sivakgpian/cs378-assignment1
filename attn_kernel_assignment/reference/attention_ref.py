@@ -9,7 +9,7 @@ check_against_reference() from this file, so get it right first. NumPy is the
 ground truth; kernels run in float32 unless a test says otherwise.
 """
 import numpy as np
-
+import math
 FP32_TOL = 1e-4
 FP16_TOL = 1e-2
 
@@ -22,7 +22,22 @@ def attention_reference(Q, K, V, causal=False):
     """
     # BEGIN ASSIGN1_1_1
     # TODO: softmax(Q K^T / sqrt(d)) V
-    raise NotImplementedError("ASSIGN1_1_1: attention_reference")
+    d = Q.shape[-1]
+    S = Q @ K.transpose(0,1,3,2)
+    S = S/math.sqrt(d)
+    if causal:
+        N = Q.shape[-2]
+        # upper triangular matrix without diagonal elements
+        mask = np.triu(np.ones((N,N), dtype = bool), k = 1)
+        S[..., mask] = -np.inf
+
+    #substract the row max from S
+    S = S- S.max(axis = -1, keepdims = True)
+    P = np.exp(S)
+    P = P/P.sum(axis = -1, keepdims = True)
+    O = P @ V
+    return O
+    #raise NotImplementedError("ASSIGN1_1_1: attention_reference")
     # END ASSIGN1_1_1
 
 
@@ -36,8 +51,8 @@ def check_against_reference(kernel_out, Q, K, V, causal=False, dtype="fp32",
     tol = FP16_TOL if dtype == "fp16" else FP32_TOL
     # BEGIN ASSIGN1_1_2
     # TODO: max-error comparison 
-    max_err = float("nan")
-    ok = False
+    max_err = np.max(np.abs(kernel_out - ref))
+    ok = max_err < tol
     # END ASSIGN1_1_2
     tag = f"{label} " if label else ""
     print(f"{tag}causal={int(causal)} dtype={dtype} "
